@@ -1,20 +1,25 @@
-# ---------- Build stage ----------
-FROM maven:3.9-eclipse-temurin-21 AS build
+# ---- Build Stage ----
+FROM maven:3.9.6-eclipse-temurin-17 AS build
+
 WORKDIR /app
 
+# Copy pom.xml and download dependencies first (for caching)
 COPY pom.xml .
-# Cache deps to speed up rebuilds
-RUN --mount=type=cache,target=/root/.m2 mvn -B -DskipTests dependency:go-offline
+RUN mvn dependency:go-offline
 
-COPY src ./src
-RUN --mount=type=cache,target=/root/.m2 mvn -B -DskipTests clean install package
+# Copy the full project and build
+COPY . .
+RUN mvn clean package -DskipTests
 
-# ---------- Run stage ----------
-FROM eclipse-temurin:21-jre-alpine
+# ---- Run Stage ----
+FROM eclipse-temurin:17-jdk
+
 WORKDIR /app
 
+# Copy the JAR from build stage
 COPY --from=build /app/target/*.jar app.jar
 
-ENV JAVA_OPTS=""
-EXPOSE 8081
-ENTRYPOINT ["sh","-c","java $JAVA_OPTS -jar app.jar"]
+EXPOSE 8080
+
+# Run the application
+ENTRYPOINT ["java", "-jar", "app.jar"]
